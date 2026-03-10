@@ -1,29 +1,33 @@
-with
+-- depends_on: {{ ref('raw_stores') }}
+-- noqa: disable=ST06
 
-source as (
+with raw_stores as (
 
-    select * from {{ source('ecom', 'raw_stores') }}
+    select
+        id,
+        name,
+        tax_rate,
+        opened_at
+    from {{ source('ecom', 'raw_stores') }}
 
 ),
 
 renamed as (
 
     select
-
-        ----------  ids
-        id as location_id,
-
-        ---------- text
-        name as location_name,
-
-        ---------- numerics
         tax_rate,
-
-        ---------- timestamps
-        {{ dbt.date_trunc('day', 'opened_at') }} as opened_date
-
-    from source
+        nullif(trim(id), '') as location_id,
+        nullif(trim(name), '') as location_name,
+        cast(date_trunc('day', opened_at) as date) as opened_date
+    from raw_stores
 
 )
 
-select * from renamed
+select
+    location_id,
+    location_name,
+    tax_rate,
+    opened_date
+from renamed
+
+-- noqa: enable=ST06

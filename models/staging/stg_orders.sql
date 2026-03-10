@@ -1,33 +1,65 @@
-with
+-- depends_on: {{ ref('raw_orders') }}
+-- noqa: disable=ST06
 
-source as (
+with raw_orders as (
 
-    select * from {{ source('ecom', 'raw_orders') }}
+    select
+        id,
+        store_id,
+        customer,
+        subtotal,
+        tax_paid,
+        order_total,
+        ordered_at
+    from {{ source('ecom', 'raw_orders') }}
 
 ),
 
 renamed as (
 
     select
+        nullif(trim(id), '') as order_id,
+        nullif(trim(store_id), '') as location_id,
+        nullif(trim(customer), '') as customer_id,
+        cast(nullif(trim(cast(subtotal as varchar)), '') as bigint)
+            as subtotal_cents,
+        cast(nullif(trim(cast(tax_paid as varchar)), '') as bigint)
+            as tax_paid_cents,
+        cast(nullif(trim(cast(order_total as varchar)), '') as bigint)
+            as order_total_cents,
+        cast(date_trunc('day', ordered_at) as date) as ordered_at
+    from raw_orders
 
-        ----------  ids
-        id as order_id,
-        store_id as location_id,
-        customer as customer_id,
+),
 
-        ---------- numerics
-        subtotal as subtotal_cents,
-        tax_paid as tax_paid_cents,
-        order_total as order_total_cents,
-        {{ cents_to_dollars('subtotal') }} as subtotal,
-        {{ cents_to_dollars('tax_paid') }} as tax_paid,
-        {{ cents_to_dollars('order_total') }} as order_total,
+final as (
 
-        ---------- timestamps
-        {{ dbt.date_trunc('day','ordered_at') }} as ordered_at
-
-    from source
+    select
+        order_id,
+        location_id,
+        customer_id,
+        subtotal_cents,
+        tax_paid_cents,
+        order_total_cents,
+        subtotal_cents / 100.00 as subtotal,
+        tax_paid_cents / 100.00 as tax_paid,
+        (subtotal_cents + tax_paid_cents) / 100.00 as order_total,
+        ordered_at
+    from renamed
 
 )
 
-select * from renamed
+select
+    order_id,
+    location_id,
+    customer_id,
+    subtotal_cents,
+    tax_paid_cents,
+    order_total_cents,
+    subtotal,
+    tax_paid,
+    order_total,
+    ordered_at
+from final
+
+-- noqa: enable=ST06

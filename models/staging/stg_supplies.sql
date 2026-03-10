@@ -1,31 +1,37 @@
-with
+-- depends_on: {{ ref('raw_supplies') }}
 
-source as (
+with source as (
 
-    select * from {{ source('ecom', 'raw_supplies') }}
+    select
+        id,
+        sku,
+        name,
+        cost,
+        perishable
+    from {{ source('ecom', 'raw_supplies') }}
 
 ),
 
 renamed as (
 
     select
-
-        ----------  ids
-        {{ dbt_utils.generate_surrogate_key(['id', 'sku']) }} as supply_uuid,
-        id as supply_id,
-        sku as product_id,
-
-        ---------- text
-        name as supply_name,
-
-        ---------- numerics
-        {{ cents_to_dollars('cost') }} as supply_cost,
-
-        ---------- booleans
-        perishable as is_perishable_supply
-
+        md5(
+            coalesce(trim(id), '') || '-' || coalesce(trim(sku), '')
+        ) as supply_uuid,
+        nullif(trim(id), '') as supply_id,
+        nullif(upper(trim(sku)), '') as product_id,
+        nullif(trim(name), '') as supply_name,
+        cast(cost as decimal(18, 2)) / 100 as supply_cost,
+        coalesce(perishable, false) as is_perishable_supply
     from source
 
 )
 
-select * from renamed
+select
+    supply_uuid,
+    supply_id,
+    product_id,
+    supply_name,
+    supply_cost,
+    is_perishable_supply
+from renamed

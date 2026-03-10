@@ -1,23 +1,24 @@
-with
+-- depends_on: {{ ref('raw_customers') }}
 
-source as (
+with source as (
 
-    select * from {{ source('ecom', 'raw_customers') }}
+    select
+        id,
+        name
+    from {{ source('ecom', 'raw_customers') }}
 
 ),
 
 renamed as (
 
     select
-
-        ----------  ids
-        id as customer_id,
-
-        ---------- text
-        name as customer_name
-
+        nullif(trim(id), '') as customer_id,
+        nullif(trim(name), '') as customer_name
     from source
 
 )
 
-select * from renamed
+select
+    customer_id,
+    customer_name
+from renamed
