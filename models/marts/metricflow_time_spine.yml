@@ -1,0 +1,10 @@
+models:
+  - name: metricflow_time_spine
+    description: Daily time spine for MetricFlow metrics.
+    config:
+      time_spine:
+        standard_granularity_column: date_day
+    columns:
+      - name: date_day
+        description: Date field used as the standard day-level time spine.
+        granularity: day

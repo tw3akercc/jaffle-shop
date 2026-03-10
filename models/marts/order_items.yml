@@ -8,8 +8,9 @@ models:
       - name: order_id
         data_tests:
           - relationships:
-              to: ref('orders')
-              field: order_id
+              arguments:
+                to: ref('orders')
+                field: order_id
 
 unit_tests:
   - name: test_supply_costs_sum_correctly
@@ -84,6 +85,10 @@ semantic_models:
         description: The median revenue generated for each order item.
         agg: median
         expr: product_price
+      - name: item_order_cost
+        description: The cost incurred to fulfill each order item.
+        agg: sum
+        expr: supply_cost
 
 metrics:
   # Simple metrics
@@ -93,12 +98,12 @@ metrics:
     label: Revenue
     type_params:
       measure: revenue
-  - name: order_cost
+  - name: item_order_cost
     description: Sum of cost for each order item.
-    label: Order Cost
+    label: Item Order Cost
     type: simple
     type_params:
-      measure: order_cost
+      measure: item_order_cost
   - name: median_revenue
     description: The median revenue for each order item. Excludes tax.
     type: simple
@@ -155,7 +160,7 @@ metrics:
       expr: revenue - cost
       metrics:
         - name: revenue
-        - name: order_cost
+        - name: item_order_cost
           alias: cost
 
   #Cumulative Metrics
