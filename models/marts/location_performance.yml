@@ -1,0 +1,67 @@
+models:
+  - name: location_performance
+    description: "Location performance summary. One row per store location."
+    data_tests:
+      - dbt_utils.expression_is_true:
+          expression: "gross_profit = total_revenue - total_supply_cost"
+      - dbt_utils.expression_is_true:
+          expression: "repeat_customer_count <= unique_customer_count"
+      - dbt_utils.expression_is_true:
+          expression: "food_revenue_pct + drink_revenue_pct = 100"
+      - dbt_utils.expression_is_true:
+          expression: "gross_margin_pct >= 0 and gross_margin_pct <= 100"
+    columns:
+      - name: location_id
+        description: "Primary key for location"
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              to: ref('locations')
+              field: location_id
+      - name: location_name
+        description: "Name of the store location"
+        data_tests:
+          - not_null
+      - name: total_revenue
+        description: "Total revenue from all orders at this location"
+        data_tests:
+          - not_null
+      - name: total_supply_cost
+        description: "Total supply cost for all orders at this location"
+        data_tests:
+          - not_null
+      - name: gross_profit
+        description: "Total revenue minus total supply cost"
+        data_tests:
+          - not_null
+      - name: gross_margin_pct
+        description: "Gross profit as a percentage of total revenue"
+        data_tests:
+          - not_null
+      - name: order_count
+        description: "Total number of orders at this location"
+        data_tests:
+          - not_null
+      - name: avg_order_value
+        description: "Average order value (total revenue / order count)"
+      - name: unique_customer_count
+        description: "Number of distinct customers who ordered at this location"
+      - name: repeat_customer_count
+        description: "Number of customers who placed more than one order at this location"
+      - name: first_order_date
+        description: "Date of the first order at this location"
+      - name: last_order_date
+        description: "Date of the most recent order at this location"
+      - name: food_revenue
+        description: "Total revenue from food items at this location"
+      - name: drink_revenue
+        description: "Total revenue from drink items at this location"
+      - name: food_revenue_pct
+        description: "Food revenue as a percentage of total food + drink revenue"
+      - name: drink_revenue_pct
+        description: "Drink revenue as a percentage of total food + drink revenue"
+      - name: tax_rate
+        description: "Tax rate for this location"
+      - name: opened_date
+        description: "Date the location was opened"
