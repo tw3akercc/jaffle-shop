@@ -1,0 +1,85 @@
+version: 2
+
+models:
+  - name: location_performance
+    description: "Mart model for location performance metrics. Grain: one row per store location."
+    columns:
+      - name: location_id
+        description: "Primary key for location"
+        tests:
+          - unique
+          - not_null
+          - relationships:
+              to: ref('locations')
+              field: location_id
+      - name: location_name
+        description: "Name of the store location"
+        tests:
+          - not_null
+      - name: tax_rate
+        description: "Tax rate for the location"
+      - name: opened_date
+        description: "Date the location opened"
+      - name: total_revenue
+        description: "Total revenue from all orders at this location"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: total_supply_cost
+        description: "Total supply cost for all items sold at this location"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: gross_profit
+        description: "Gross profit (total revenue - total supply cost)"
+      - name: gross_margin_percentage
+        description: "Gross margin as a percentage"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0 and <= 100"
+      - name: order_count
+        description: "Number of distinct orders at this location"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: average_order_value
+        description: "Average revenue per order"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: unique_customer_count
+        description: "Number of unique customers who ordered at this location"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: repeat_customer_count
+        description: "Number of customers with more than one order at this location"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: food_revenue
+        description: "Total revenue from food items"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: drink_revenue
+        description: "Total revenue from drink items"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: food_revenue_pct
+        description: "Food revenue as a percentage of total revenue"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0 and <= 100"
+      - name: drink_revenue_pct
+        description: "Drink revenue as a percentage of total revenue"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0 and <= 100"
+      - name: first_order_date
+        description: "Date of the first order at this location"
+      - name: last_order_date
+        description: "Date of the most recent order at this location"
