@@ -1,0 +1,49 @@
+models:
+  - name: mart_customer_daily_activity
+    description: "Daily aggregated customer ordering behavior with cumulative lifetime metrics. Grain: one row per customer per day with activity."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - customer_id
+            - order_date
+    columns:
+      - name: customer_id
+        description: "Foreign key to customer"
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('customers')
+              field: customer_id
+      - name: order_date
+        description: "Calendar date of the order activity"
+        data_tests:
+          - not_null
+      - name: customer_name
+        description: "Customer's full name"
+        data_tests:
+          - not_null
+      - name: daily_order_count
+        description: "Number of distinct orders placed by the customer on this date"
+        data_tests:
+          - not_null
+      - name: daily_subtotal
+        description: "Total subtotal amount (pre-tax) for all orders on this date"
+        data_tests:
+          - not_null
+      - name: daily_item_count
+        description: "Total quantity of items across all orders on this date"
+        data_tests:
+          - not_null
+      - name: daily_food_items
+        description: "Total quantity of food items across all orders on this date"
+      - name: daily_drink_items
+        description: "Total quantity of drink items across all orders on this date"
+      - name: cumulative_lifetime_spend
+        description: "Running sum of daily_subtotal partitioned by customer_id, ordered by order_date"
+      - name: cumulative_lifetime_orders
+        description: "Running sum of daily_order_count partitioned by customer_id, ordered by order_date"
+      - name: is_first_order_day
+        description: "Boolean flag indicating if this is the customer's first order day"
+        data_tests:
+          - accepted_values:
+              values: [true, false]
