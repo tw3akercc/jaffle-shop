@@ -1,0 +1,60 @@
+version: 2
+
+models:
+  - name: customer_purchase_patterns
+    description: "Mart model analyzing customer purchase patterns by calculating inter-order intervals and classifying engagement status. Grain: one row per customer per order, chronologically ordered."
+    tests:
+      - dbt_utils.recency:
+          datepart: year
+          field: order_date
+          interval: 2
+          config:
+            where: "order_date >= current_date - interval '1 year'"
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - customer_id
+            - order_id
+    columns:
+      - name: customer_id
+        description: "Primary key part 1 - foreign key to customers"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('customers')
+              field: customer_id
+      - name: customer_name
+        description: "Customer display name from customer dimension"
+        tests:
+          - not_null
+      - name: order_id
+        description: "Primary key part 2 - foreign key to orders"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('orders')
+              field: order_id
+      - name: order_date
+        description: "Date the order was placed"
+        tests:
+          - not_null
+      - name: order_amount
+        description: "Total order amount in dollars"
+      - name: order_number
+        description: "Sequential order number for each customer (1 = first order)"
+        tests:
+          - not_null
+      - name: previous_order_date
+        description: "Date of the customer's previous order (null for first order)"
+      - name: days_since_previous_order
+        description: "Number of days since the customer's previous order (null for first order)"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: avg_days_between_orders
+        description: "Average days between orders for this customer across their entire order history"
+      - name: customer_status
+        description: "Customer engagement classification: 'new' (first order), 'active' (<=30 days), 'at_risk' (31-60 days), 'lapsed' (>60 days)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['new', 'active', 'at_risk', 'lapsed']
