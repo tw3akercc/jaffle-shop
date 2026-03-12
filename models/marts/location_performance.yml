@@ -1,0 +1,70 @@
+models:
+  - name: location_performance
+    description: '{{ doc("location_performance") }}'
+    columns:
+      - name: location_id
+        description: '{{ doc("location_performance__location_id") }}'
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              to: ref('locations')
+              field: location_id
+      - name: location_name
+        description: '{{ doc("location_performance__location_name") }}'
+        data_tests:
+          - not_null
+      - name: tax_rate
+        description: '{{ doc("location_performance__tax_rate") }}'
+      - name: opened_date
+        description: '{{ doc("location_performance__opened_date") }}'
+      - name: total_revenue
+        description: '{{ doc("location_performance__total_revenue") }}'
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: total_supply_cost
+        description: '{{ doc("location_performance__total_supply_cost") }}'
+      - name: gross_profit
+        description: '{{ doc("location_performance__gross_profit") }}'
+      - name: gross_margin_pct
+        description: '{{ doc("location_performance__gross_margin_pct") }}'
+        data_tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0 and gross_margin_pct <= 100"
+      - name: total_tax_collected
+        description: '{{ doc("location_performance__total_tax_collected") }}'
+      - name: order_count
+        description: '{{ doc("location_performance__order_count") }}'
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: avg_order_value
+        description: '{{ doc("location_performance__avg_order_value") }}'
+      - name: unique_customer_count
+        description: '{{ doc("location_performance__unique_customer_count") }}'
+        data_tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: repeat_customer_count
+        description: '{{ doc("location_performance__repeat_customer_count") }}'
+      - name: food_revenue
+        description: '{{ doc("location_performance__food_revenue") }}'
+      - name: drink_revenue
+        description: '{{ doc("location_performance__drink_revenue") }}'
+      - name: food_revenue_pct
+        description: '{{ doc("location_performance__food_revenue_pct") }}'
+      - name: drink_revenue_pct
+        description: '{{ doc("location_performance__drink_revenue_pct") }}'
+      - name: first_order_date
+        description: '{{ doc("location_performance__first_order_date") }}'
+      - name: last_order_date
+        description: '{{ doc("location_performance__last_order_date") }}'
+
+    data_tests:
+      - dbt_utils.expression_is_true:
+          expression: "first_order_date <= last_order_date or first_order_date is null"
+      - dbt_utils.expression_is_true:
+          expression: "food_revenue_pct + drink_revenue_pct >= 99.99 and food_revenue_pct + drink_revenue_pct <= 100.01 or food_revenue_pct = 0 and drink_revenue_pct = 0"
