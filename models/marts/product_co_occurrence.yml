@@ -1,0 +1,54 @@
+version: 2
+
+models:
+  - name: product_co_occurrence
+    description: |
+      Identifies product pairs that are frequently ordered together.
+      Grain: one row per unique unordered product pair across all orders.
+      Product A + Product B appears once, not duplicated as B + A.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - product_id_left
+            - product_id_right
+    columns:
+      - name: product_id_left
+        description: "Product ID of the first product in the pair (left side)"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('products')
+              field: product_id
+      - name: product_id_right
+        description: "Product ID of the second product in the pair (right side)"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('products')
+              field: product_id
+      - name: product_name_left
+        description: "Product name of the first product in the pair"
+        tests:
+          - not_null
+      - name: product_name_right
+        description: "Product name of the second product in the pair"
+        tests:
+          - not_null
+      - name: co_occurrence_count
+        description: "Number of orders containing both products in the pair"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+      - name: product_left_frequency
+        description: "Total number of orders containing the left product"
+        tests:
+          - not_null
+      - name: product_right_frequency
+        description: "Total number of orders containing the right product"
+        tests:
+          - not_null
+      - name: support
+        description: "Percentage of all orders that contain both products"
+        tests:
+          - not_null
