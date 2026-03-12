@@ -1,0 +1,63 @@
+models:
+  - name: location_performance
+    description: Comprehensive business summary for each store location, providing performance analysis across key financial and operational metrics. One row per location.
+    data_tests:
+      - dbt_utils.expression_is_true:
+          expression: "gross_profit = total_revenue - total_supply_cost"
+      - dbt_utils.expression_is_true:
+          expression: "gross_margin_pct >= -100 and gross_margin_pct <= 100"
+      - dbt_utils.expression_is_true:
+          expression: "abs(food_revenue_pct + drink_revenue_pct - 100) <= 0.1"
+      - dbt_utils.expression_is_true:
+          expression: "last_order_date >= first_order_date or last_order_date is null"
+      - dbt_utils.expression_is_true:
+          expression: "repeat_customer_count <= unique_customer_count"
+    columns:
+      - name: location_id
+        description: The unique key of the location performance mart.
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              to: ref('locations')
+              field: location_id
+      - name: location_name
+        description: The name of the store location.
+        data_tests:
+          - not_null
+      - name: tax_rate
+        description: The tax rate applied at the location.
+      - name: opened_date
+        description: The date the location opened.
+        data_tests:
+          - not_null
+      - name: total_revenue
+        description: Total pre-tax revenue from all orders at the location (sum of subtotal).
+      - name: total_supply_cost
+        description: Total supply cost for all items sold at the location.
+      - name: gross_profit
+        description: Gross profit calculated as total_revenue minus total_supply_cost.
+      - name: gross_margin_pct
+        description: Gross margin percentage, rounded to 2 decimal places.
+      - name: total_tax_collected
+        description: Total tax collected from all orders at the location.
+      - name: order_count
+        description: Count of distinct orders at the location.
+      - name: avg_order_value
+        description: Average order value calculated as total_revenue divided by order_count, rounded to 2 decimal places.
+      - name: unique_customer_count
+        description: Count of distinct customers who have placed orders at the location.
+      - name: repeat_customer_count
+        description: Count of distinct customers who have placed more than one order at the location (customer_order_number > 1).
+      - name: food_revenue
+        description: Total revenue from food items sold at the location.
+      - name: drink_revenue
+        description: Total revenue from drink items sold at the location.
+      - name: food_revenue_pct
+        description: Percentage of total revenue from food items, rounded to 2 decimal places.
+      - name: drink_revenue_pct
+        description: Percentage of total revenue from drink items, rounded to 2 decimal places.
+      - name: first_order_date
+        description: The date of the first order placed at the location.
+      - name: last_order_date
+        description: The date of the most recent order placed at the location.
