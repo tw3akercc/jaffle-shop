@@ -1,0 +1,55 @@
+version: 2
+
+models:
+  - name: product_co_occurrence
+    description: '{{ doc("product_co_occurrence") }}'
+    columns:
+      - name: product_id_left
+        description: '{{ doc("product_co_occurrence__product_id_left") }}'
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('products')
+              field: product_id
+
+      - name: product_id_right
+        description: '{{ doc("product_co_occurrence__product_id_right") }}'
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('products')
+              field: product_id
+
+      - name: product_name_left
+        description: '{{ doc("product_co_occurrence__product_name_left") }}'
+        data_tests:
+          - not_null
+
+      - name: product_name_right
+        description: '{{ doc("product_co_occurrence__product_name_right") }}'
+        data_tests:
+          - not_null
+
+      - name: product_type_left
+        description: '{{ doc("product_co_occurrence__product_type_left") }}'
+
+      - name: product_type_right
+        description: '{{ doc("product_co_occurrence__product_type_right") }}'
+
+      - name: co_occurrence_count
+        description: '{{ doc("product_co_occurrence__co_occurrence_count") }}'
+        data_tests:
+          - not_null
+
+      - name: product_left_order_count
+        description: '{{ doc("product_co_occurrence__product_left_order_count") }}'
+
+      - name: product_right_order_count
+        description: '{{ doc("product_co_occurrence__product_right_order_count") }}'
+
+      - name: support_pct
+        description: '{{ doc("product_co_occurrence__support_pct") }}'
+
+    data_tests:
+      - unique:
+          column_name: "product_id_left || '-' || product_id_right"
