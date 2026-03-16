@@ -1,0 +1,64 @@
+version: 2
+
+models:
+  - name: monthly_revenue_report
+    description: '{{ doc("monthly_revenue_report") }}'
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - location_id
+            - month
+    columns:
+      - name: location_id
+        description: '{{ doc("monthly_revenue_report__location_id") }}'
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('locations')
+              field: location_id
+
+      - name: location_name
+        description: '{{ doc("monthly_revenue_report__location_name") }}'
+        data_tests:
+          - not_null
+
+      - name: month
+        description: '{{ doc("monthly_revenue_report__month") }}'
+        data_tests:
+          - not_null
+
+      - name: monthly_revenue
+        description: '{{ doc("monthly_revenue_report__monthly_revenue") }}'
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: monthly_order_count
+        description: '{{ doc("monthly_revenue_report__monthly_order_count") }}'
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 1"
+
+      - name: mom_revenue_growth_pct
+        description: '{{ doc("monthly_revenue_report__mom_revenue_growth_pct") }}'
+
+      - name: cumulative_revenue
+        description: '{{ doc("monthly_revenue_report__cumulative_revenue") }}'
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: location_total_revenue
+        description: '{{ doc("monthly_revenue_report__location_total_revenue") }}'
+        data_tests:
+          - not_null
+
+      - name: revenue_contribution_pct
+        description: '{{ doc("monthly_revenue_report__revenue_contribution_pct") }}'
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0 and revenue_contribution_pct <= 100"
