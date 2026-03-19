@@ -1,0 +1,61 @@
+version: 2
+
+models:
+  - name: location_monthly_revenue
+    description: '{{ doc("location_monthly_revenue") }}'
+    columns:
+      - name: location_id
+        description: '{{ doc("location_monthly_revenue__location_id") }}'
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('locations')
+              field: location_id
+
+      - name: month
+        description: '{{ doc("location_monthly_revenue__month") }}'
+        data_tests:
+          - not_null
+
+      - name: location_name
+        description: '{{ doc("location_monthly_revenue__location_name") }}'
+        data_tests:
+          - not_null
+
+      - name: monthly_revenue
+        description: '{{ doc("location_monthly_revenue__monthly_revenue") }}'
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              inclusive: true
+
+      - name: monthly_order_count
+        description: '{{ doc("location_monthly_revenue__monthly_order_count") }}'
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              inclusive: true
+
+      - name: cumulative_revenue
+        description: '{{ doc("location_monthly_revenue__cumulative_revenue") }}'
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              inclusive: true
+
+      - name: pct_of_location_total
+        description: '{{ doc("location_monthly_revenue__pct_of_location_total") }}'
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 100
+              inclusive: true
+
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - location_id
+            - month
