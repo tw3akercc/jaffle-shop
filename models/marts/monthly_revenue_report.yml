@@ -1,0 +1,48 @@
+models:
+  - name: monthly_revenue_report
+    description: Per-location monthly revenue performance metrics for the finance team. One row per location per calendar month (only months with at least one order).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - location_id
+            - revenue_month
+      - dbt_utils.expression_is_true:
+          expression: "cumulative_revenue >= revenue"
+    columns:
+      - name: location_id
+        description: The foreign key relating to the location.
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('locations')
+              field: location_id
+      - name: location_name
+        description: The human-readable name of the location.
+      - name: revenue_month
+        description: The first day of the month (truncated from ordered_at).
+        data_tests:
+          - not_null
+      - name: revenue
+        description: Total revenue (sum of subtotal) for the location in the month.
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+      - name: order_count
+        description: Count of orders for the location in the month.
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 1"
+      - name: revenue_mom_growth_pct
+        description: Month-over-month revenue growth percentage. NULL for the first month of each location.
+      - name: cumulative_revenue
+        description: Running total of revenue for the location up to and including this month.
+        data_tests:
+          - not_null
+      - name: pct_of_location_total_revenue
+        description: This month's revenue as a percentage of the location's all-time total revenue.
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0 and pct_of_location_total_revenue <= 100"
