@@ -1,0 +1,52 @@
+models:
+  - name: location_monthly_revenue
+    description: '{{ doc("location_monthly_revenue") }}'
+    data_tests:
+      - dbt_utils.expression_is_true:
+          expression: "monthly_revenue >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "monthly_order_count >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "pct_of_total_revenue >= 0 and pct_of_total_revenue <= 100"
+      - dbt_utils.expression_is_true:
+          expression: "cumulative_revenue >= monthly_revenue"
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - location_id
+            - month_start
+    columns:
+      - name: location_id
+        description: '{{ doc("location_monthly_revenue__location_id") }}'
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('locations')
+              field: location_id
+      - name: location_name
+        description: '{{ doc("location_monthly_revenue__location_name") }}'
+        data_tests:
+          - not_null
+      - name: month_start
+        description: '{{ doc("location_monthly_revenue__month_start") }}'
+        data_tests:
+          - not_null
+      - name: month
+        description: '{{ doc("location_monthly_revenue__month") }}'
+      - name: monthly_revenue
+        description: '{{ doc("location_monthly_revenue__monthly_revenue") }}'
+        data_tests:
+          - not_null
+      - name: monthly_order_count
+        description: '{{ doc("location_monthly_revenue__monthly_order_count") }}'
+        data_tests:
+          - not_null
+      - name: mom_revenue_growth_pct
+        description: '{{ doc("location_monthly_revenue__mom_revenue_growth_pct") }}'
+      - name: cumulative_revenue
+        description: '{{ doc("location_monthly_revenue__cumulative_revenue") }}'
+        data_tests:
+          - not_null
+      - name: pct_of_total_revenue
+        description: '{{ doc("location_monthly_revenue__pct_of_total_revenue") }}'
+        data_tests:
+          - not_null
