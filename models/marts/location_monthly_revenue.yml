@@ -1,0 +1,53 @@
+models:
+  - name: location_monthly_revenue
+    description: |
+      Monthly revenue aggregation by store location. One row per location per calendar month,
+      zero-filled for months with no orders. Includes period-over-period growth metrics and
+      cumulative revenue totals for trend analysis.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - location_id
+            - month
+    columns:
+      - name: month
+        description: First day of the calendar month.
+        data_tests:
+          - not_null
+      - name: location_id
+        description: Surrogate key for the store location.
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('locations')
+              field: location_id
+      - name: location_name
+        description: Human-readable store name.
+        data_tests:
+          - not_null
+      - name: monthly_revenue
+        description: Sum of order_total for the month; 0 if no orders.
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: monthly_order_count
+        description: Count of orders for the month; 0 if no orders.
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: revenue_mom_growth_pct
+        description: Month-over-month revenue change as a decimal (e.g., 0.12 = 12%).
+                   Null for the first month per location.
+      - name: cumulative_revenue
+        description: Running sum of monthly_revenue through the current month.
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= monthly_revenue"
+      - name: pct_of_location_total_revenue
+        description: monthly_revenue as a share of the location's all-time revenue (0-1 decimal).
+        data_tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0 and pct_of_location_total_revenue <= 1"
