@@ -1,3 +1,5 @@
+{{ config(materialized='view') }}
+
 with
 
 source as (
@@ -17,6 +19,12 @@ renamed as (
 
     from source
 
+),
+
+final as (
+
+    select * from renamed
+
 )
 
-select * from renamed
+select * from final

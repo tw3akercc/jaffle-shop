@@ -1,3 +1,5 @@
+{{ config(materialized='view') }}
+
 with
 
 source as (
@@ -18,7 +20,6 @@ renamed as (
         type as product_type,
         description as product_description,
 
-
         ---------- numerics
         {{ cents_to_dollars('price') }} as product_price,
 
@@ -29,6 +30,12 @@ renamed as (
 
     from source
 
+),
+
+final as (
+
+    select * from renamed
+
 )
 
-select * from renamed
+select * from final

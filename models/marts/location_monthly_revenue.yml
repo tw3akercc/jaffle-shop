@@ -1,0 +1,53 @@
+models:
+  - name: location_monthly_revenue
+    description: '{{ doc("location_monthly_revenue") }}'
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - location_id
+            - revenue_month
+      - dbt_utils.expression_is_true:
+          expression: "monthly_revenue - monthly_revenue_pretax >= 0"
+    columns:
+      - name: location_id
+        description: '{{ doc("location_monthly_revenue__location_id") }}'
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('locations')
+                field: location_id
+      - name: location_name
+        description: '{{ doc("location_monthly_revenue__location_name") }}'
+      - name: revenue_month
+        description: '{{ doc("location_monthly_revenue__revenue_month") }}'
+        data_tests:
+          - not_null
+      - name: monthly_order_count
+        description: '{{ doc("location_monthly_revenue__monthly_order_count") }}'
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 1"
+      - name: monthly_revenue
+        description: '{{ doc("location_monthly_revenue__monthly_revenue") }}'
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+      - name: monthly_revenue_pretax
+        description: '{{ doc("location_monthly_revenue__monthly_revenue_pretax") }}'
+        data_tests:
+          - not_null
+      - name: mom_revenue_growth_pct
+        description: '{{ doc("location_monthly_revenue__mom_revenue_growth_pct") }}'
+      - name: cumulative_revenue
+        description: '{{ doc("location_monthly_revenue__cumulative_revenue") }}'
+        data_tests:
+          - not_null
+      - name: pct_of_location_total_revenue
+        description: '{{ doc("location_monthly_revenue__pct_of_location_total_revenue") }}'
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0 and pct_of_location_total_revenue <= 100"
