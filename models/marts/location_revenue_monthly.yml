@@ -1,0 +1,50 @@
+version: 2
+
+models:
+  - name: location_revenue_monthly
+    description: '{{ doc("location_revenue_monthly") }}'
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - location_id
+            - revenue_month
+      - dbt_utils.expression_is_true:
+          expression: "monthly_revenue >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "monthly_order_count >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "pct_of_all_time_revenue >= 0 and pct_of_all_time_revenue <= 100"
+    columns:
+      - name: location_id
+        description: '{{ doc("location_revenue_monthly__location_id") }}'
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('locations')
+              field: location_id
+      - name: location_name
+        description: '{{ doc("location_revenue_monthly__location_name") }}'
+        data_tests:
+          - not_null
+      - name: revenue_month
+        description: '{{ doc("location_revenue_monthly__revenue_month") }}'
+        data_tests:
+          - not_null
+      - name: monthly_revenue
+        description: '{{ doc("location_revenue_monthly__monthly_revenue") }}'
+        data_tests:
+          - not_null
+      - name: monthly_order_count
+        description: '{{ doc("location_revenue_monthly__monthly_order_count") }}'
+        data_tests:
+          - not_null
+      - name: revenue_mom_growth_pct
+        description: '{{ doc("location_revenue_monthly__revenue_mom_growth_pct") }}'
+      - name: cumulative_revenue
+        description: '{{ doc("location_revenue_monthly__cumulative_revenue") }}'
+        data_tests:
+          - not_null
+      - name: pct_of_all_time_revenue
+        description: '{{ doc("location_revenue_monthly__pct_of_all_time_revenue") }}'
+        data_tests:
+          - not_null

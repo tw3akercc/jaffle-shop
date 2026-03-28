@@ -24,6 +24,9 @@ clean-targets:
 vars:
   "dbt_date:time_zone": "America/Los_Angeles"
 
+on-run-start:
+  - "{{ load_source_csvs() }}"
+
 seeds:
   jaffle_shop:
     +schema: raw
