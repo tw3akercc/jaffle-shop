@@ -1,0 +1,56 @@
+version: 2
+
+models:
+  - name: location_revenue_monthly
+    description: '{{ doc("location_revenue_monthly") }}'
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - location_id
+            - month
+      - dbt_utils.expression_is_true:
+          expression: "monthly_order_count > 0"
+    columns:
+      - name: location_id
+        description: '{{ doc("location_revenue_monthly__location_id") }}'
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('locations')
+              field: location_id
+      - name: location_name
+        description: '{{ doc("location_revenue_monthly__location_name") }}'
+        data_tests:
+          - not_null
+      - name: month
+        description: '{{ doc("location_revenue_monthly__month") }}'
+        data_tests:
+          - not_null
+      - name: monthly_order_count
+        description: '{{ doc("location_revenue_monthly__monthly_order_count") }}'
+        data_tests:
+          - not_null
+      - name: monthly_subtotal
+        description: '{{ doc("location_revenue_monthly__monthly_subtotal") }}'
+        data_tests:
+          - not_null
+      - name: monthly_order_total
+        description: '{{ doc("location_revenue_monthly__monthly_order_total") }}'
+        data_tests:
+          - not_null
+      - name: mom_subtotal_growth_pct
+        description: '{{ doc("location_revenue_monthly__mom_subtotal_growth_pct") }}'
+      - name: mom_order_total_growth_pct
+        description: '{{ doc("location_revenue_monthly__mom_order_total_growth_pct") }}'
+      - name: cumulative_subtotal
+        description: '{{ doc("location_revenue_monthly__cumulative_subtotal") }}'
+        data_tests:
+          - not_null
+      - name: cumulative_order_total
+        description: '{{ doc("location_revenue_monthly__cumulative_order_total") }}'
+        data_tests:
+          - not_null
+      - name: pct_of_total_subtotal
+        description: '{{ doc("location_revenue_monthly__pct_of_total_subtotal") }}'
+      - name: pct_of_total_order_total
+        description: '{{ doc("location_revenue_monthly__pct_of_total_order_total") }}'
