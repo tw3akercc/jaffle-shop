@@ -1,0 +1,91 @@
+version: 2
+
+models:
+  - name: location_monthly_revenue
+    description: >
+      Monthly revenue aggregation by location for store-level trend analysis.
+      Grain: one row per (location_id, month). Only months with at least one
+      order at that location are included.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - location_id
+            - month
+      - dbt_utils.expression_is_true:
+          expression: "order_count >= 1"
+      - dbt_utils.expression_is_true:
+          expression: "monthly_subtotal >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "monthly_order_total >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "monthly_order_total >= monthly_subtotal"
+      - dbt_utils.expression_is_true:
+          expression: "cumulative_subtotal >= monthly_subtotal"
+      - dbt_utils.expression_is_true:
+          expression: "pct_of_total_subtotal > 0 and pct_of_total_subtotal <= 100"
+      - dbt_utils.expression_is_true:
+          expression: "pct_of_total_order_total > 0 and pct_of_total_order_total <= 100"
+    columns:
+      - name: location_id
+        description: Foreign key to the locations mart. Identifies the store.
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('locations')
+              field: location_id
+      - name: location_name
+        description: The name of the store location.
+        data_tests:
+          - not_null
+      - name: month
+        description: >
+          The first day of the calendar month for this row, derived from
+          ordered_at using date_trunc.
+        data_tests:
+          - not_null
+      - name: order_count
+        description: Number of orders placed at this location during the month.
+        data_tests:
+          - not_null
+      - name: monthly_subtotal
+        description: Sum of pre-tax order subtotals (subtotal) for the month, in USD.
+        data_tests:
+          - not_null
+      - name: monthly_order_total
+        description: >
+          Sum of total order revenue including tax (order_total) for the month,
+          in USD.
+        data_tests:
+          - not_null
+      - name: mom_subtotal_growth_pct
+        description: >
+          Month-over-month percentage change in monthly_subtotal for this
+          location. NULL for a location's first month.
+      - name: mom_order_total_growth_pct
+        description: >
+          Month-over-month percentage change in monthly_order_total for this
+          location. NULL for a location's first month.
+      - name: cumulative_subtotal
+        description: >
+          Running cumulative sum of monthly_subtotal for this location, ordered
+          by month ascending.
+        data_tests:
+          - not_null
+      - name: cumulative_order_total
+        description: >
+          Running cumulative sum of monthly_order_total for this location,
+          ordered by month ascending.
+        data_tests:
+          - not_null
+      - name: pct_of_total_subtotal
+        description: >
+          This month's monthly_subtotal as a percentage of the location's
+          all-time monthly_subtotal. Rounded to 2 decimal places.
+        data_tests:
+          - not_null
+      - name: pct_of_total_order_total
+        description: >
+          This month's monthly_order_total as a percentage of the location's
+          all-time monthly_order_total. Rounded to 2 decimal places.
+        data_tests:
+          - not_null
