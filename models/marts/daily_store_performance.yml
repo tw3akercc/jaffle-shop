@@ -1,0 +1,112 @@
+models:
+  - name: daily_store_performance
+    description: |
+      Contract for the PRD 301 daily store performance mart.
+
+      Grain: one row per active location_id per observed order_date. The
+      canonical order_date is orders.ordered_at exactly as exposed by the
+      orders mart; stg_orders already truncates the source timestamp to day
+      grain, so downstream joins, aggregates, uniqueness checks, and tests must
+      use orders.ordered_at without additional truncation or casting.
+
+      Reporting spine: distinct observed orders.ordered_at values from
+      ref('orders') only. The mart intentionally excludes full-calendar dates
+      that do not appear in orders. Active location eligibility is
+      locations.opened_date <= order_date; the source schema does not provide a
+      close date or inactive flag, so no additional lifecycle condition is part
+      of this contract.
+
+      Source boundary: this mart consumes ref('locations'), ref('orders'), and
+      ref('order_items') as existing cleaned marts and does not redefine
+      upstream revenue semantics. It must not add a close-date concept,
+      introduce an inactive-location flag, create a BI or MetricFlow semantic
+      layer, or replace the observed-date spine with a full calendar.
+
+      Metric behavior: additive metrics are zero-filled when an active
+      location/date has no matching orders or items. gross_profit is
+      pretax_revenue - supply_cost. gross_margin_percentage is gross_profit /
+      nullif(pretax_revenue, 0) and remains null when pretax_revenue is zero.
+      food_revenue + drink_revenue = pretax_revenue is a hard data-quality
+      expectation; classification gaps or overlapping food/drink flags should
+      fail tests instead of being silently tolerated.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - location_id
+            - order_date
+      - dbt_utils.expression_is_true:
+          expression: "order_count >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "unique_customers >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "new_customer_orders >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "repeat_customer_orders >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "gross_revenue >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "pretax_revenue >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "tax_paid >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "supply_cost >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "food_item_count >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "drink_item_count >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "food_revenue >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "drink_revenue >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "gross_revenue = pretax_revenue + tax_paid"
+      - dbt_utils.expression_is_true:
+          expression: "gross_profit = pretax_revenue - supply_cost"
+      - dbt_utils.expression_is_true:
+          expression: "food_revenue + drink_revenue = pretax_revenue"
+      - dbt_utils.expression_is_true:
+          expression: "new_customer_orders + repeat_customer_orders = order_count"
+      - dbt_utils.expression_is_true:
+          expression: "(pretax_revenue = 0 and gross_margin_percentage is null) or (pretax_revenue != 0 and gross_margin_percentage = gross_profit / nullif(pretax_revenue, 0))"
+      - dbt_utils.expression_is_true:
+          expression: "gross_margin_percentage is null or gross_margin_percentage <= 1"
+    columns:
+      - name: location_id
+        description: The foreign key for the store location active on the observed order_date.
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('locations')
+              field: location_id
+      - name: order_date
+        description: The canonical reporting date, using orders.ordered_at exactly as already day-truncated by stg_orders.
+        data_tests:
+          - not_null
+      - name: order_count
+        description: Count of distinct orders for the active location on the observed order_date; zero-filled when the store had no orders.
+      - name: unique_customers
+        description: Count of distinct customers who ordered from the active location on the observed order_date; zero-filled when the store had no orders.
+      - name: new_customer_orders
+        description: Count of orders where customer_order_number = 1 for the active location on the observed order_date; zero-filled when the store had no orders.
+      - name: repeat_customer_orders
+        description: Count of orders where customer_order_number > 1 for the active location on the observed order_date; zero-filled when the store had no orders.
+      - name: gross_revenue
+        description: Sum of order_total for the active location on the observed order_date, equal to pretax_revenue + tax_paid; zero-filled when the store had no orders.
+      - name: pretax_revenue
+        description: Sum of subtotal for the active location on the observed order_date, excluding tax; zero-filled when the store had no orders.
+      - name: tax_paid
+        description: Sum of tax_paid for the active location on the observed order_date; zero-filled when the store had no orders.
+      - name: supply_cost
+        description: Sum of order_cost for the active location on the observed order_date; zero-filled when the store had no orders.
+      - name: food_item_count
+        description: Sum of count_food_items for the active location on the observed order_date; zero-filled when the store had no orders.
+      - name: drink_item_count
+        description: Sum of count_drink_items for the active location on the observed order_date; zero-filled when the store had no orders.
+      - name: food_revenue
+        description: Sum of order item product_price where is_food_item is true, aggregated separately from order-level metrics to avoid fanout; zero-filled when the store had no food item revenue.
+      - name: drink_revenue
+        description: Sum of order item product_price where is_drink_item is true, aggregated separately from order-level metrics to avoid fanout; zero-filled when the store had no drink item revenue.
+      - name: gross_profit
+        description: Pretax revenue minus supply cost for the active location on the observed order_date.
+      - name: gross_margin_percentage
+        description: Gross profit divided by pretax_revenue, using nullif(pretax_revenue, 0); remains null when pretax_revenue is zero.
