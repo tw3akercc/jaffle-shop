@@ -1,0 +1,95 @@
+models:
+  - name: daily_store_performance
+    description: |
+      Internal analytics mart for regional store health reporting. The grain is
+      one row per location_id per order_date for each active location/date in
+      the reporting range. Active location/date rows with no orders must keep
+      additive metrics zero-filled, while gross_margin_percentage must remain
+      null when pretax_revenue = 0 so zero-sales days are not reported as real
+      0% margin days.
+
+      This file defines the public contract and validation surface only. The
+      executable model, date scaffold, joins, and aggregate SQL are owned by
+      sibling implementation slices #284-#287, so this contract is fully
+      verifiable only after those slices have introduced the model and columns.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - location_id
+            - order_date
+      - dbt_utils.expression_is_true:
+          expression: "coalesce(order_count, -1) >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "coalesce(unique_customers, -1) >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "coalesce(new_customer_orders, -1) >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "coalesce(repeat_customer_orders, -1) >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "coalesce(gross_revenue, -1) >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "coalesce(pretax_revenue, -1) >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "coalesce(tax_paid, -1) >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "coalesce(supply_cost, -1) >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "coalesce(food_item_count, -1) >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "coalesce(drink_item_count, -1) >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "coalesce(food_revenue, -1) >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "coalesce(drink_revenue, -1) >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "gross_revenue = pretax_revenue + tax_paid"
+      - dbt_utils.expression_is_true:
+          expression: "gross_profit is not null and gross_profit = pretax_revenue - supply_cost"
+      - dbt_utils.expression_is_true:
+          expression: "food_revenue + drink_revenue = pretax_revenue"
+      - dbt_utils.expression_is_true:
+          expression: "new_customer_orders + repeat_customer_orders = order_count"
+      - dbt_utils.expression_is_true:
+          expression: "gross_margin_percentage is null or gross_margin_percentage <= 1"
+      - dbt_utils.expression_is_true:
+          expression: "pretax_revenue != 0 or gross_margin_percentage is null"
+    columns:
+      - name: location_id
+        description: The foreign key for the store location represented by this daily row.
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('locations')
+              field: location_id
+      - name: order_date
+        description: The order calendar date for this store performance row.
+        data_tests:
+          - not_null
+      - name: order_count
+        description: Count of distinct orders for this location and order date. Zero-filled for active location/date rows with no orders.
+      - name: unique_customers
+        description: Count of distinct customers who ordered from this location on this order date. Zero-filled for active location/date rows with no orders.
+      - name: new_customer_orders
+        description: Count of orders where customer_order_number = 1 for this location and order date. Zero-filled for active location/date rows with no orders.
+      - name: repeat_customer_orders
+        description: Count of orders where customer_order_number > 1 for this location and order date. Zero-filled for active location/date rows with no orders.
+      - name: gross_revenue
+        description: Total order revenue including tax, using the orders.order_total semantics. Zero-filled for active location/date rows with no orders.
+      - name: pretax_revenue
+        description: Order revenue before tax, using the orders.subtotal semantics. Zero-filled for active location/date rows with no orders.
+      - name: tax_paid
+        description: Total tax paid, using the orders.tax_paid semantics. Zero-filled for active location/date rows with no orders.
+      - name: supply_cost
+        description: Total supply cost for fulfilled order items, using the orders.order_cost semantics. Zero-filled for active location/date rows with no orders.
+      - name: gross_profit
+        description: Pretax revenue minus supply cost. Zero-filled for active location/date rows with no orders because both additive inputs are zero-filled.
+      - name: gross_margin_percentage
+        description: Gross profit divided by pretax revenue. Null when pretax_revenue = 0, including active location/date rows with no orders.
+      - name: food_item_count
+        description: Count of food items sold, using the orders.count_food_items semantics. Zero-filled for active location/date rows with no orders.
+      - name: drink_item_count
+        description: Count of drink items sold, using the orders.count_drink_items semantics. Zero-filled for active location/date rows with no orders.
+      - name: food_revenue
+        description: Pretax revenue from food items, based on order_items.product_price where is_food_item is true. Zero-filled for active location/date rows with no orders.
+      - name: drink_revenue
+        description: Pretax revenue from drink items, based on order_items.product_price where is_drink_item is true. Zero-filled for active location/date rows with no orders.
