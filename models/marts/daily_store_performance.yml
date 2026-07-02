@@ -1,0 +1,41 @@
+models:
+  - name: daily_store_performance
+    description: Daily store performance mart slice with one row per location and day with order activity. This slice aggregates order-level metrics from the orders mart only and does not zero-fill missing store/date rows.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - location_id
+            - ordered_at
+      - dbt_utils.expression_is_true:
+          expression: "gross_revenue = pretax_revenue + tax_paid"
+      - dbt_utils.expression_is_true:
+          expression: "new_customer_orders + repeat_customer_orders = order_count"
+    columns:
+      - name: location_id
+        description: The store location where the orders were placed. Together with ordered_at, this is the model grain.
+        data_tests:
+          - not_null
+      - name: ordered_at
+        description: The day-grain order date key, defensively normalized from orders.ordered_at. Together with location_id, this is the model grain.
+        data_tests:
+          - not_null
+      - name: order_count
+        description: Count of distinct orders placed at the location on the order date.
+      - name: unique_customers
+        description: Count of distinct customers who placed orders at the location on the order date.
+      - name: new_customer_orders
+        description: Count of orders where the order was the customer's first order.
+      - name: repeat_customer_orders
+        description: Count of orders where the customer had placed a previous order.
+      - name: gross_revenue
+        description: Sum of order totals including tax for the location and order date.
+      - name: pretax_revenue
+        description: Sum of order subtotals before tax for the location and order date.
+      - name: tax_paid
+        description: Sum of taxes paid for the location and order date.
+      - name: supply_cost
+        description: Sum of order supply costs for the location and order date.
+      - name: food_item_count
+        description: Sum of food item counts across orders at the location on the order date.
+      - name: drink_item_count
+        description: Sum of drink item counts across orders at the location on the order date.
