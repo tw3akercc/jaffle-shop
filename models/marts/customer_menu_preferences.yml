@@ -1,0 +1,186 @@
+models:
+  - name: customer_menu_preferences
+    description: >
+      Lifetime menu preference profile at one row per customer. Customers with no
+      purchases are retained with zero-valued metrics, a preferred product type
+      of `no purchases`, and null favorite-product attributes. Product favorites
+      are selected by units descending, revenue descending, then product ID
+      ascending.
+    data_tests:
+      - dbt_utils.expression_is_true:
+          expression: "lifetime_item_count = food_item_count + drink_item_count"
+    columns:
+      - name: customer_id
+        description: The unique customer represented by the preference profile.
+        data_tests:
+          - not_null
+          - unique
+          - relationships:
+              to: ref('stg_customers')
+              field: customer_id
+      - name: customer_name
+        description: The customer's full name.
+        data_tests:
+          - not_null
+      - name: lifetime_item_count
+        description: Total number of menu items the customer has purchased.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: distinct_product_count
+        description: Number of distinct products the customer has purchased.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: food_item_count
+        description: Number of food items the customer has purchased.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: drink_item_count
+        description: Number of drink items the customer has purchased.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: food_item_revenue
+        description: Lifetime pretax revenue from the customer's food items.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: drink_item_revenue
+        description: Lifetime pretax revenue from the customer's drink items.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: food_item_share
+        description: Share of the customer's purchased units that are food.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+      - name: drink_item_share
+        description: Share of the customer's purchased units that are drinks.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+      - name: preferred_product_type
+        description: >
+          Food or drink according to item count, then revenue when counts tie;
+          food wins an exact tie. Customers without purchases use `no purchases`.
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [food, drink, "no purchases"]
+      - name: favorite_product_id
+        description: >
+          ID of the favorite product, or null when the customer has no purchases.
+        data_tests:
+          - relationships:
+              to: ref('stg_products')
+              field: product_id
+      - name: favorite_product_name
+        description: >
+          Name of the favorite product, or null when the customer has no purchases.
+      - name: favorite_product_units
+        description: Lifetime units purchased of the customer's favorite product.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: favorite_product_revenue
+        description: >
+          Lifetime pretax revenue from the customer's favorite product.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: favorite_product_share
+        description: >
+          Share of the customer's purchased units represented by their favorite
+          product; zero when the customer has no purchases.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+
+unit_tests:
+  - name: test_customer_menu_preferences_clear_favorite
+    description: A product with more purchased units is selected as the favorite.
+    model: customer_menu_preferences
+    given:
+      - input: ref('stg_customers')
+        rows:
+          - {customer_id: customer-1, customer_name: Clear Favorite}
+      - input: ref('stg_orders')
+        rows:
+          - {order_id: order-1, customer_id: customer-1}
+      - input: ref('stg_order_items')
+        rows:
+          - {order_id: order-1, product_id: JAF-001}
+          - {order_id: order-1, product_id: JAF-001}
+          - {order_id: order-1, product_id: BEV-001}
+      - input: ref('stg_products')
+        rows:
+          - {product_id: JAF-001, product_name: Food One, product_price: 11, is_food_item: true, is_drink_item: false}
+          - {product_id: BEV-001, product_name: Drink One, product_price: 6, is_food_item: false, is_drink_item: true}
+    expect:
+      rows:
+        - {customer_id: customer-1, lifetime_item_count: 3, distinct_product_count: 2, food_item_count: 2, drink_item_count: 1, preferred_product_type: food, favorite_product_id: JAF-001, favorite_product_name: Food One, favorite_product_units: 2, favorite_product_revenue: 22}
+
+  - name: test_customer_menu_preferences_favorite_ties
+    description: >
+      Revenue breaks a units tie, and product ID ascending breaks a units and
+      revenue tie.
+    model: customer_menu_preferences
+    given:
+      - input: ref('stg_customers')
+        rows:
+          - {customer_id: customer-revenue-tie, customer_name: Revenue Tie}
+          - {customer_id: customer-id-tie, customer_name: ID Tie}
+      - input: ref('stg_orders')
+        rows:
+          - {order_id: revenue-order, customer_id: customer-revenue-tie}
+          - {order_id: id-order, customer_id: customer-id-tie}
+      - input: ref('stg_order_items')
+        rows:
+          - {order_id: revenue-order, product_id: BEV-001}
+          - {order_id: revenue-order, product_id: JAF-001}
+          - {order_id: id-order, product_id: JAF-003}
+          - {order_id: id-order, product_id: JAF-002}
+      - input: ref('stg_products')
+        rows:
+          - {product_id: BEV-001, product_name: Lower Revenue, product_price: 5, is_food_item: false, is_drink_item: true}
+          - {product_id: JAF-001, product_name: Higher Revenue, product_price: 11, is_food_item: true, is_drink_item: false}
+          - {product_id: JAF-003, product_name: Higher ID, product_price: 11, is_food_item: true, is_drink_item: false}
+          - {product_id: JAF-002, product_name: Lower ID, product_price: 11, is_food_item: true, is_drink_item: false}
+    expect:
+      rows:
+        - {customer_id: customer-revenue-tie, favorite_product_id: JAF-001, favorite_product_name: Higher Revenue, favorite_product_units: 1, favorite_product_revenue: 11}
+        - {customer_id: customer-id-tie, favorite_product_id: JAF-002, favorite_product_name: Lower ID, favorite_product_units: 1, favorite_product_revenue: 11}
+
+  - name: test_customer_menu_preferences_no_purchases
+    description: Customers without purchases are retained with defined fallbacks.
+    model: customer_menu_preferences
+    given:
+      - input: ref('stg_customers')
+        rows:
+          - {customer_id: customer-1, customer_name: No Purchases}
+      - input: ref('stg_orders')
+        rows: []
+      - input: ref('stg_order_items')
+        rows: []
+      - input: ref('stg_products')
+        rows: []
+    expect:
+      rows:
+        - {customer_id: customer-1, lifetime_item_count: 0, distinct_product_count: 0, food_item_count: 0, drink_item_count: 0, food_item_revenue: 0, drink_item_revenue: 0, food_item_share: 0, drink_item_share: 0, preferred_product_type: "no purchases", favorite_product_units: 0, favorite_product_revenue: 0, favorite_product_share: 0}
