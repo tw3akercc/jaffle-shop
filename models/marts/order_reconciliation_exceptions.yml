@@ -1,0 +1,150 @@
+version: 2
+
+models:
+  - name: order_reconciliation_exceptions
+    description: >-
+      Operational exception mart containing one row per order that fails at least
+      one item, product, supply recipe, subtotal, or tax-total reconciliation rule.
+      Monetary values are in USD.
+    data_tests:
+      - dbt_utils.expression_is_true:
+          expression: "issue_count > 0"
+      - dbt_utils.expression_is_true:
+          expression: >-
+            issue_count =
+            case when has_no_items then 1 else 0 end
+            + case when has_unknown_product then 1 else 0 end
+            + case when has_missing_supply_recipe then 1 else 0 end
+            + case when has_subtotal_mismatch then 1 else 0 end
+            + case when has_tax_total_mismatch then 1 else 0 end
+    columns:
+      - name: order_id
+        description: The unique identifier of the failing order.
+        data_tests:
+          - not_null
+          - unique
+      - name: source_subtotal
+        description: The subtotal recorded on the source order, in USD.
+      - name: source_tax
+        description: The tax recorded on the source order, in USD.
+      - name: source_total
+        description: The total recorded on the source order, in USD.
+      - name: calculated_item_subtotal
+        description: >-
+          The sum of prices for known order items, in USD. Zero when no item
+          prices are available.
+      - name: item_count
+        description: The number of item records attached to the order.
+      - name: known_product_count
+        description: The number of order items whose SKU exists in products.
+      - name: products_with_recipes
+        description: >-
+          The number of order items whose known product has at least one supply
+          recipe record.
+      - name: has_no_items
+        description: True when the order has no item records.
+      - name: has_unknown_product
+        description: True when at least one item SKU does not exist in products.
+      - name: has_missing_supply_recipe
+        description: >-
+          True when at least one known item SKU has no supply recipe records.
+      - name: has_subtotal_mismatch
+        description: >-
+          True when the calculated item subtotal differs from the source subtotal.
+      - name: has_tax_total_mismatch
+        description: >-
+          True when the source total differs from source subtotal plus source tax.
+      - name: issue_count
+        description: The number of reconciliation issue flags set to true.
+
+unit_tests:
+  - name: test_valid_order_is_not_an_exception
+    description: A fully reconciled order is excluded from the mart.
+    model: order_reconciliation_exceptions
+    given:
+      - input: ref('stg_orders')
+        rows:
+          - {order_id: order-1, subtotal: 5.00, tax_paid: 0.50, order_total: 5.50}
+      - input: ref('stg_order_items')
+        rows:
+          - {order_item_id: item-1, order_id: order-1, product_id: sku-1}
+      - input: ref('stg_products')
+        rows:
+          - {product_id: sku-1, product_price: 5.00}
+      - input: ref('stg_supplies')
+        rows:
+          - {product_id: sku-1}
+    expect:
+      rows: []
+
+  - name: test_no_item_order_is_an_exception
+    description: An order without items is emitted with zero item totals and counts.
+    model: order_reconciliation_exceptions
+    given:
+      - input: ref('stg_orders')
+        rows:
+          - {order_id: order-1, subtotal: 0.00, tax_paid: 0.00, order_total: 0.00}
+      - input: ref('stg_order_items')
+        rows: []
+      - input: ref('stg_products')
+        rows: []
+      - input: ref('stg_supplies')
+        rows: []
+    expect:
+      rows:
+        - order_id: order-1
+          calculated_item_subtotal: 0.00
+          item_count: 0
+          known_product_count: 0
+          products_with_recipes: 0
+          has_no_items: true
+          issue_count: 1
+
+  - name: test_unknown_sku_is_an_exception
+    description: An item with an unknown SKU is emitted and is not treated as priced.
+    model: order_reconciliation_exceptions
+    given:
+      - input: ref('stg_orders')
+        rows:
+          - {order_id: order-1, subtotal: 0.00, tax_paid: 0.00, order_total: 0.00}
+      - input: ref('stg_order_items')
+        rows:
+          - {order_item_id: item-1, order_id: order-1, product_id: unknown-sku}
+      - input: ref('stg_products')
+        rows: []
+      - input: ref('stg_supplies')
+        rows: []
+    expect:
+      rows:
+        - order_id: order-1
+          calculated_item_subtotal: 0.00
+          item_count: 1
+          known_product_count: 0
+          products_with_recipes: 0
+          has_unknown_product: true
+          has_missing_supply_recipe: false
+          issue_count: 1
+
+  - name: test_subtotal_mismatch_is_an_exception
+    description: A known, recipe-backed item with the wrong subtotal is emitted.
+    model: order_reconciliation_exceptions
+    given:
+      - input: ref('stg_orders')
+        rows:
+          - {order_id: order-1, subtotal: 5.00, tax_paid: 0.50, order_total: 5.50}
+      - input: ref('stg_order_items')
+        rows:
+          - {order_item_id: item-1, order_id: order-1, product_id: sku-1}
+      - input: ref('stg_products')
+        rows:
+          - {product_id: sku-1, product_price: 4.00}
+      - input: ref('stg_supplies')
+        rows:
+          - {product_id: sku-1}
+    expect:
+      rows:
+        - order_id: order-1
+          source_subtotal: 5.00
+          calculated_item_subtotal: 4.00
+          has_subtotal_mismatch: true
+          issue_count: 1
