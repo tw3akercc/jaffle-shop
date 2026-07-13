@@ -1,0 +1,143 @@
+models:
+  - name: product_pair_affinity
+    description: >
+      Basket-affinity metrics at one row per canonical unordered pair of products
+      that occurred together. Repeated units of a product in an order are counted
+      once. Support uses all distinct non-empty baskets as its denominator, and
+      pair rank orders pairs by co-occurring orders, lift, then product IDs.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - product_a_id
+            - product_b_id
+      - dbt_utils.expression_is_true:
+          expression: "product_a_id < product_b_id"
+    columns:
+      - name: product_a_id
+        description: The lower product ID in the canonical pair.
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_products')
+              field: product_id
+      - name: product_a_name
+        description: Product A's name.
+        data_tests:
+          - not_null
+      - name: product_a_type
+        description: Product A's source product type.
+        data_tests:
+          - not_null
+      - name: product_b_id
+        description: The higher product ID in the canonical pair.
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_products')
+              field: product_id
+      - name: product_b_name
+        description: Product B's name.
+        data_tests:
+          - not_null
+      - name: product_b_type
+        description: Product B's source product type.
+        data_tests:
+          - not_null
+      - name: orders_containing_both
+        description: Number of distinct orders containing both products.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
+              inclusive: true
+      - name: product_a_orders
+        description: Number of distinct orders containing product A.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
+              inclusive: true
+      - name: product_b_orders
+        description: Number of distinct orders containing product B.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
+              inclusive: true
+      - name: support
+        description: Share of distinct non-empty baskets containing both products.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+              inclusive: true
+      - name: confidence_a_to_b
+        description: Share of product A orders that also contain product B.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+              inclusive: true
+      - name: confidence_b_to_a
+        description: Share of product B orders that also contain product A.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+              inclusive: true
+      - name: lift
+        description: >
+          Observed pair support divided by expected support if product occurrence
+          were independent.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              inclusive: false
+      - name: pair_classification
+        description: Food/drink composition of the pair.
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['food-food', 'drink-drink', 'food-drink']
+      - name: pair_rank
+        description: >
+          Deterministic global row number ordered by co-occurring orders descending,
+          lift descending, then the canonical product IDs.
+        data_tests:
+          - not_null
+          - unique
+          - dbt_utils.accepted_range:
+              min_value: 1
+              inclusive: true
+
+unit_tests:
+  - name: test_product_pair_affinity_deduplicates_basket_products
+    description: >
+      Three known baskets prove that duplicated units do not inflate product or
+      pair counts and that directional metrics and classification are correct.
+    model: product_pair_affinity
+    given:
+      - input: ref('stg_order_items')
+        rows:
+          - {order_id: 1, product_id: A}
+          - {order_id: 1, product_id: A}
+          - {order_id: 1, product_id: B}
+          - {order_id: 2, product_id: A}
+          - {order_id: 2, product_id: C}
+          - {order_id: 3, product_id: A}
+          - {order_id: 3, product_id: B}
+          - {order_id: 3, product_id: C}
+      - input: ref('stg_products')
+        rows:
+          - {product_id: A, product_name: Apple, product_type: jaffle, is_food_item: true, is_drink_item: false}
+          - {product_id: B, product_name: Brew, product_type: beverage, is_food_item: false, is_drink_item: true}
+          - {product_id: C, product_name: Cake, product_type: jaffle, is_food_item: true, is_drink_item: false}
+    expect:
+      rows:
+        - {product_a_id: A, product_b_id: B, orders_containing_both: 2, product_a_orders: 3, product_b_orders: 2, support: 0.6666666666666666, confidence_a_to_b: 0.6666666666666666, confidence_b_to_a: 1.0, lift: 1.0, pair_classification: food-drink, pair_rank: 1}
+        - {product_a_id: A, product_b_id: C, orders_containing_both: 2, product_a_orders: 3, product_b_orders: 2, support: 0.6666666666666666, confidence_a_to_b: 0.6666666666666666, confidence_b_to_a: 1.0, lift: 1.0, pair_classification: food-food, pair_rank: 2}
+        - {product_a_id: B, product_b_id: C, orders_containing_both: 1, product_a_orders: 2, product_b_orders: 2, support: 0.3333333333333333, confidence_a_to_b: 0.5, confidence_b_to_a: 0.5, lift: 0.75, pair_classification: food-drink, pair_rank: 3}
