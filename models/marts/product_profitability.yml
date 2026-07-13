@@ -1,0 +1,79 @@
+models:
+  - name: product_profitability
+    description: >
+      Product-level sales and profitability mart. The grain is one row per
+      product, including catalog products that have never been sold. Revenue
+      excludes tax, and estimated COGS uses the recipe supply cost attached to
+      each order item.
+    data_tests:
+      - dbt_utils.expression_is_true:
+          expression: "gross_profit = pretax_revenue - estimated_cogs"
+      - dbt_utils.expression_is_true:
+          expression: "units_sold >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "distinct_orders >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "pretax_revenue >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "estimated_cogs >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "average_realized_item_revenue >= 0"
+      - dbt_utils.expression_is_true:
+          expression: "revenue_mix >= 0 and revenue_mix <= 1"
+      - dbt_utils.expression_is_true:
+          expression: "order_penetration >= 0 and order_penetration <= 1"
+    columns:
+      - name: product_id
+        description: The unique product identifier and grain of the mart.
+        data_tests:
+          - not_null
+          - unique
+          - relationships:
+              to: ref('products')
+              field: product_id
+      - name: product_name
+        description: The catalog name of the product.
+        data_tests:
+          - not_null
+      - name: product_type
+        description: The catalog category of the product.
+        data_tests:
+          - not_null
+      - name: units_sold
+        description: Number of order items sold for the product.
+      - name: distinct_orders
+        description: Number of distinct orders containing the product.
+      - name: pretax_revenue
+        description: Realized item revenue in USD, excluding tax.
+      - name: estimated_cogs
+        description: Estimated recipe-derived supply cost in USD for units sold.
+      - name: gross_profit
+        description: Pretax revenue less estimated COGS, in USD.
+      - name: gross_margin
+        description: Gross profit divided by pretax revenue, expressed as a ratio.
+      - name: average_realized_item_revenue
+        description: Pretax revenue divided by units sold, in USD.
+      - name: revenue_mix
+        description: Share of total item pretax revenue attributable to the product.
+      - name: order_penetration
+        description: Share of all orders that contain the product.
+
+unit_tests:
+  - name: test_product_profitability_calculations_and_zero_fill
+    description: >
+      Verifies product aggregation, profitability ratios, and zero-valued
+      metrics for an unsold catalog product.
+    model: product_profitability
+    given:
+      - input: ref('products')
+        rows:
+          - {product_id: product_1, product_name: Sold product, product_type: food}
+          - {product_id: product_2, product_name: Unsold product, product_type: drink}
+      - input: ref('order_items')
+        rows:
+          - {order_item_id: item_1, order_id: order_1, product_id: product_1, product_price: 10.00, supply_cost: 4.00}
+          - {order_item_id: item_2, order_id: order_2, product_id: product_1, product_price: 10.00, supply_cost: 4.00}
+    expect:
+      rows:
+        - {product_id: product_1, units_sold: 2, distinct_orders: 2, pretax_revenue: 20.00, estimated_cogs: 8.00, gross_profit: 12.00, gross_margin: 0.60, average_realized_item_revenue: 10.00, revenue_mix: 1.00, order_penetration: 1.00}
+        - {product_id: product_2, units_sold: 0, distinct_orders: 0, pretax_revenue: 0, estimated_cogs: 0, gross_profit: 0, gross_margin: 0, average_realized_item_revenue: 0, revenue_mix: 0, order_penetration: 0}
