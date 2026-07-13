@@ -1,0 +1,174 @@
+version: 2
+
+models:
+  - name: monthly_supply_requirements
+    description: >
+      Estimated supply purchasing requirements based on sold menu items and their
+      current product recipes. The grain is one row per calendar month, product,
+      and recipe-level supply_uuid. These values are planning estimates, not
+      actual inventory consumption or waste. The current recipe data has no
+      quantity field, so each recipe row is assumed to require exactly one supply
+      unit for every menu item sold. Every distinct supply_uuid is retained for
+      cost-record traceability. If multiple cost rows have distinct supply_uuid
+      values, each is estimated separately. Rows that resolve to the same
+      supply_uuid (whether their costs match or differ) are not deduplicated:
+      they violate the documented grain and are intentionally surfaced by the
+      upstream and model key uniqueness tests instead of being selected
+      arbitrarily or hidden.
+    columns:
+      - name: monthly_supply_requirement_uuid
+        description: >
+          Surrogate key for the calendar month, product, and supply_uuid grain.
+        data_tests:
+          - not_null
+          - unique
+      - name: calendar_month
+        description: Calendar month in which the menu items were sold.
+        data_tests:
+          - not_null
+      - name: product_id
+        description: Identifier for the sold menu item.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_products')
+                field: product_id
+      - name: product_name
+        description: Name of the sold menu item.
+      - name: product_type
+        description: Type of the sold menu item, such as jaffle or beverage.
+      - name: product_description
+        description: Description of the sold menu item.
+      - name: supply_uuid
+        description: >
+          Recipe-level supply cost record used to estimate this requirement.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_supplies')
+                field: supply_uuid
+      - name: supply_id
+        description: Business identifier for the ingredient or packaging supply.
+      - name: supply_name
+        description: Name of the ingredient or packaging supply.
+      - name: is_perishable_supply
+        description: Whether the supply is perishable.
+        data_tests:
+          - not_null
+      - name: supply_unit_cost
+        description: Cost of one supply unit from the traced recipe cost record.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: menu_items_sold
+        description: Number of units of the product sold during the month.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: estimated_supply_units_required
+        description: >
+          Estimated supply units required. This equals menu_items_sold under the
+          current one-recipe-row-per-item assumption.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "= menu_items_sold"
+      - name: estimated_supply_spend
+        description: >
+          Estimated spend, calculated as estimated units required multiplied by
+          supply unit cost; this is not actual inventory spend.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: >
+                  = estimated_supply_units_required * supply_unit_cost
+      - name: share_of_monthly_supply_spend
+        description: >
+          This row's estimated spend divided by estimated spend across all
+          products and supplies in the same calendar month.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+      - name: estimated_perishable_supply_spend
+        description: >
+          Estimated supply spend when the supply is perishable, otherwise zero.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: >
+                  = case when is_perishable_supply
+                      then estimated_supply_spend else 0 end
+
+unit_tests:
+  - name: test_one_product_sale_explodes_to_multiple_supplies
+    description: >
+      One sold product produces one estimated unit for every supply in its recipe.
+    model: monthly_supply_requirements
+    given:
+      - input: ref('stg_order_items')
+        rows:
+          - {order_item_id: item-1, order_id: order-1, product_id: JAF-001}
+      - input: ref('stg_orders')
+        rows:
+          - {order_id: order-1, ordered_at: '2024-01-15'}
+      - input: ref('stg_products')
+        rows:
+          - product_id: JAF-001
+            product_name: Test jaffle
+            product_type: jaffle
+            product_description: A test product
+      - input: ref('stg_supplies')
+        rows:
+          - supply_uuid: recipe-bread
+            supply_id: SUP-009
+            product_id: JAF-001
+            supply_name: bread
+            supply_cost: 0.33
+            is_perishable_supply: true
+          - supply_uuid: recipe-boat
+            supply_id: SUP-003
+            product_id: JAF-001
+            supply_name: serving boat
+            supply_cost: 0.11
+            is_perishable_supply: false
+    expect:
+      rows:
+        - calendar_month: '2024-01-01'
+          product_id: JAF-001
+          supply_uuid: recipe-bread
+          menu_items_sold: 1
+          estimated_supply_units_required: 1
+          supply_unit_cost: 0.33
+          estimated_supply_spend: 0.33
+          share_of_monthly_supply_spend: 0.75
+          estimated_perishable_supply_spend: 0.33
+        - calendar_month: '2024-01-01'
+          product_id: JAF-001
+          supply_uuid: recipe-boat
+          menu_items_sold: 1
+          estimated_supply_units_required: 1
+          supply_unit_cost: 0.11
+          estimated_supply_spend: 0.11
+          share_of_monthly_supply_spend: 0.25
+          estimated_perishable_supply_spend: 0
