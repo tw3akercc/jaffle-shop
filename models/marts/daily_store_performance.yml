@@ -1,0 +1,22 @@
+models:
+  - name: daily_store_performance
+    description: >
+      Daily store performance from each location's opening date onward.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - location_id
+            - order_date
+    columns:
+      - name: location_id
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_locations')
+              field: location_id
+      - name: location_name
+        data_tests:
+          - not_null
+      - name: order_date
+        data_tests:
+          - not_null
