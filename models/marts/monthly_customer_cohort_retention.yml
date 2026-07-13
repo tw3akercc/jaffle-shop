@@ -1,0 +1,160 @@
+models:
+  - name: monthly_customer_cohort_retention
+    description: >
+      Monthly customer retention and pretax revenue by first-order cohort. The
+      grain is one row per cohort month and activity month, with zero-activity
+      months retained through the latest observed order month. The latest
+      observed month is intentionally included; when it is still in progress,
+      its activity and revenue metrics are month-to-date and should not be
+      compared directly with completed months.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - cohort_month
+            - activity_month
+      - dbt_utils.expression_is_true:
+          expression: "activity_month >= cohort_month"
+      - dbt_utils.expression_is_true:
+          expression: "active_customers <= cohort_size"
+      - dbt_utils.expression_is_true:
+          expression: "retention_rate >= 0 and retention_rate <= 1"
+    columns:
+      - name: cohort_month
+        description: Calendar month in which customers placed their first order.
+        data_tests:
+          - not_null
+      - name: activity_month
+        description: Calendar month in which cohort activity is measured.
+        data_tests:
+          - not_null
+      - name: months_since_acquisition
+        description: Whole calendar months elapsed since the cohort month.
+        data_tests:
+          - not_null
+      - name: cohort_size
+        description: >
+          Number of customers originally acquired in the cohort month.
+        data_tests:
+          - not_null
+      - name: active_customers
+        description: >
+          Distinct cohort customers who ordered in the activity month.
+        data_tests:
+          - not_null
+      - name: retention_rate
+        description: Active customers divided by the original cohort size.
+        data_tests:
+          - not_null
+      - name: order_count
+        description: Orders placed by cohort customers in the activity month.
+        data_tests:
+          - not_null
+      - name: pretax_revenue
+        description: Pretax revenue from cohort orders in the activity month.
+        data_tests:
+          - not_null
+      - name: revenue_per_original_cohort_customer
+        description: Pretax revenue divided by the original cohort size.
+        data_tests:
+          - not_null
+      - name: revenue_per_active_customer
+        description: >
+          Pretax revenue divided by active customers; null for zero-activity
+          cells because the denominator is zero.
+
+unit_tests:
+  - name: test_monthly_customer_cohort_retention_zero_fills_and_calculates
+    description: >
+      Customers retain their first-order cohort and missing activity is
+      zero-filled through the latest observed order month.
+    model: monthly_customer_cohort_retention
+    given:
+      - input: ref('orders')
+        rows:
+          - {
+              customer_id: 1,
+              ordered_at: "2024-01-03",
+              subtotal: 10.00,
+            }
+          - {
+              customer_id: 1,
+              ordered_at: "2024-03-12",
+              subtotal: 30.00,
+            }
+          - {
+              customer_id: 2,
+              ordered_at: "2024-01-20",
+              subtotal: 20.00,
+            }
+          - {
+              customer_id: 2,
+              ordered_at: "2024-02-08",
+              subtotal: 10.00,
+            }
+          - {
+              customer_id: 3,
+              ordered_at: "2024-02-14",
+              subtotal: 40.00,
+            }
+    expect:
+      rows:
+        - {
+            cohort_month: "2024-01-01",
+            activity_month: "2024-01-01",
+            months_since_acquisition: 0,
+            cohort_size: 2,
+            active_customers: 2,
+            retention_rate: 1.0,
+            order_count: 2,
+            pretax_revenue: 30.00,
+            revenue_per_original_cohort_customer: 15.00,
+            revenue_per_active_customer: 15.00,
+          }
+        - {
+            cohort_month: "2024-01-01",
+            activity_month: "2024-02-01",
+            months_since_acquisition: 1,
+            cohort_size: 2,
+            active_customers: 1,
+            retention_rate: 0.5,
+            order_count: 1,
+            pretax_revenue: 10.00,
+            revenue_per_original_cohort_customer: 5.00,
+            revenue_per_active_customer: 10.00,
+          }
+        - {
+            cohort_month: "2024-01-01",
+            activity_month: "2024-03-01",
+            months_since_acquisition: 2,
+            cohort_size: 2,
+            active_customers: 1,
+            retention_rate: 0.5,
+            order_count: 1,
+            pretax_revenue: 30.00,
+            revenue_per_original_cohort_customer: 15.00,
+            revenue_per_active_customer: 30.00,
+          }
+        - {
+            cohort_month: "2024-02-01",
+            activity_month: "2024-02-01",
+            months_since_acquisition: 0,
+            cohort_size: 1,
+            active_customers: 1,
+            retention_rate: 1.0,
+            order_count: 1,
+            pretax_revenue: 40.00,
+            revenue_per_original_cohort_customer: 40.00,
+            revenue_per_active_customer: 40.00,
+          }
+        - {
+            cohort_month: "2024-02-01",
+            activity_month: "2024-03-01",
+            months_since_acquisition: 1,
+            cohort_size: 1,
+            active_customers: 0,
+            retention_rate: 0.0,
+            order_count: 0,
+            pretax_revenue: 0.00,
+            revenue_per_original_cohort_customer: 0.00,
+            revenue_per_active_customer: null,
+          }
