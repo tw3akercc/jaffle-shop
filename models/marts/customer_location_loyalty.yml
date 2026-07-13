@@ -1,0 +1,126 @@
+models:
+  - name: customer_location_loyalty
+    description: >
+      Customer loyalty behavior by location, at one row per customer and location
+      where the customer has placed at least one order. Percentage fields are on a
+      0-to-100 scale. A customer's primary location is selected deterministically
+      by order count descending, total spend descending, then location ID ascending.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - customer_id
+            - location_id
+    columns:
+      - name: customer_id
+        description: The customer represented by this loyalty record.
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('customers')
+              field: customer_id
+      - name: customer_name
+        description: The customer's name.
+        data_tests:
+          - not_null
+      - name: location_id
+        description: The location where the customer placed the orders.
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_locations')
+              field: location_id
+      - name: location_name
+        description: The location's name.
+        data_tests:
+          - not_null
+      - name: first_order_date
+        description: Date of the customer's first order at the location.
+        data_tests:
+          - not_null
+      - name: last_order_date
+        description: Date of the customer's most recent order at the location.
+        data_tests:
+          - not_null
+      - name: order_count
+        description: Number of orders the customer placed at the location.
+        data_tests:
+          - not_null
+      - name: pretax_spend
+        description: Customer spend at the location before tax, in USD.
+        data_tests:
+          - not_null
+      - name: tax_paid
+        description: Tax paid by the customer at the location, in USD.
+        data_tests:
+          - not_null
+      - name: total_spend
+        description: Customer spend at the location including tax, in USD.
+        data_tests:
+          - not_null
+      - name: average_order_value
+        description: Average order total including tax at the location, in USD.
+        data_tests:
+          - not_null
+      - name: percentage_of_customer_orders
+        description: Percentage of all the customer's orders placed at this location (0 to 100).
+        data_tests:
+          - not_null
+      - name: percentage_of_customer_spend
+        description: Percentage of all the customer's total spend attributed to this location (0 to 100).
+        data_tests:
+          - not_null
+      - name: location_rank
+        description: >
+          Location preference rank using order count descending, total spend
+          descending, and location ID ascending.
+        data_tests:
+          - not_null
+      - name: is_primary_location
+        description: True for the customer's single top-ranked location.
+        data_tests:
+          - not_null
+      - name: locations_visited
+        description: Number of distinct locations where the customer has placed an order.
+        data_tests:
+          - not_null
+
+unit_tests:
+  - name: test_single_location_customer_loyalty
+    description: A single-location customer receives 100 percent shares and that location is primary.
+    model: customer_location_loyalty
+    given:
+      - input: ref('orders')
+        rows:
+          - {order_id: 1, customer_id: 1, location_id: 10, ordered_at: '2024-01-02', subtotal: 10.00, tax_paid: 1.00, order_total: 11.00}
+          - {order_id: 2, customer_id: 1, location_id: 10, ordered_at: '2024-01-05', subtotal: 20.00, tax_paid: 2.00, order_total: 22.00}
+      - input: ref('customers')
+        rows:
+          - {customer_id: 1, customer_name: Alice}
+      - input: ref('stg_locations')
+        rows:
+          - {location_id: 10, location_name: Downtown}
+    expect:
+      rows:
+        - {customer_id: 1, location_id: 10, first_order_date: '2024-01-02', last_order_date: '2024-01-05', order_count: 2, pretax_spend: 30.00, tax_paid: 3.00, total_spend: 33.00, average_order_value: 16.50, percentage_of_customer_orders: 100.0, percentage_of_customer_spend: 100.0, location_rank: 1, is_primary_location: true, locations_visited: 1}
+
+  - name: test_tied_multi_location_customer_uses_location_id_tiebreaker
+    description: Equal order counts and spend are resolved to exactly one primary location by ascending location ID.
+    model: customer_location_loyalty
+    given:
+      - input: ref('orders')
+        rows:
+          - {order_id: 1, customer_id: 2, location_id: 20, ordered_at: '2024-02-01', subtotal: 14.00, tax_paid: 1.00, order_total: 15.00}
+          - {order_id: 2, customer_id: 2, location_id: 20, ordered_at: '2024-02-02', subtotal: 14.00, tax_paid: 1.00, order_total: 15.00}
+          - {order_id: 3, customer_id: 2, location_id: 10, ordered_at: '2024-02-03', subtotal: 14.00, tax_paid: 1.00, order_total: 15.00}
+          - {order_id: 4, customer_id: 2, location_id: 10, ordered_at: '2024-02-04', subtotal: 14.00, tax_paid: 1.00, order_total: 15.00}
+      - input: ref('customers')
+        rows:
+          - {customer_id: 2, customer_name: Bob}
+      - input: ref('stg_locations')
+        rows:
+          - {location_id: 10, location_name: Downtown}
+          - {location_id: 20, location_name: Uptown}
+    expect:
+      rows:
+        - {customer_id: 2, location_id: 10, order_count: 2, total_spend: 30.00, percentage_of_customer_orders: 50.0, percentage_of_customer_spend: 50.0, location_rank: 1, is_primary_location: true, locations_visited: 2}
+        - {customer_id: 2, location_id: 20, order_count: 2, total_spend: 30.00, percentage_of_customer_orders: 50.0, percentage_of_customer_spend: 50.0, location_rank: 2, is_primary_location: false, locations_visited: 2}
