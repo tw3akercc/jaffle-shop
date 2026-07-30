@@ -1,0 +1,49 @@
+version: 2
+
+models:
+  - name: monthly_revenue_by_location
+    description: Monthly revenue report broken down by store location. One row per unique combination of location_id and report_month.
+    columns:
+      - name: location_id
+        description: The unique identifier of the store location.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_locations')
+              field: location_id
+      - name: location_name
+        description: The human-readable name of the store location.
+      - name: report_month
+        description: The calendar month of the report, truncated to month granularity.
+        tests:
+          - not_null
+      - name: monthly_revenue
+        description: The sum of order_total for all orders in this location during the month.
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: monthly_order_count
+        description: The count of orders placed at this location during the month.
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 1"
+      - name: revenue_growth_mom_pct
+        description: Month-over-month revenue growth percentage. NULL for the first month per location.
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= -100"
+          - dbt_utils.expression_is_true:
+              expression: "<= 100"
+      - name: cumulative_revenue
+        description: Running cumulative sum of monthly revenue for this location.
+        tests:
+          - not_null
+      - name: revenue_contribution_pct
+        description: This month's revenue as a percentage of the location's all-time total revenue.
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= -100"
+          - dbt_utils.expression_is_true:
+              expression: "<= 100"
