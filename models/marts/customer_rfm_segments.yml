@@ -1,0 +1,291 @@
+models:
+  - name: customer_rfm_segments
+    description: |
+      Customer RFM segmentation at one row per customer. Recency, frequency,
+      and monetary scores use inclusive fixed bands (not ntiles), so tied
+      values always receive the same score.
+
+      The analysis date is the maximum `last_ordered_at` in `customers`, so
+      recency is reproducible and does not change with wall-clock time.
+      Monetary value is lifetime pretax spend (`orders.subtotal` rolled up
+      on the customers mart). Customers with no orders are retained with
+      scores of 0 and segment `no_purchase`.
+
+      Recency scores (days from last order through analysis_date) are
+      5/4/3/2/1 for <=7, <=14, <=30, <=90, and >90 days. Frequency scores
+      (distinct lifetime orders) are 5/4/3/2/1 for >=100, >=50, >=25, >=10,
+      and >=1. Monetary scores (lifetime pretax spend) are 5/4/3/2/1 for
+      >=$1000, >=$500, >=$250, >=$100, and >$0. Bands are sized for this
+      high-frequency cafe rather than a generic retail quintile split.
+
+      Segment precedence, first match wins: no_purchase (frequency = 0);
+      champion (R, F, and M >= 4); loyal (R >= 3 and F >= 3);
+      potential_loyalist (R >= 4 and F >= 2); new_customer (R >= 4 and
+      F = 1); at_risk (R <= 2 and either F or M >= 3); otherwise
+      hibernating.
+    data_tests:
+      - dbt_utils.expression_is_true:
+          expression: "frequency >= 0 and pretax_monetary_value >= 0"
+      - dbt_utils.expression_is_true:
+          expression: >-
+            (frequency = 0 and customer_segment = 'no_purchase'
+            and recency_score = 0 and frequency_score = 0
+            and monetary_score = 0)
+            or (frequency > 0 and customer_segment != 'no_purchase'
+            and recency_score between 1 and 5)
+    columns:
+      - name: customer_id
+        description: Unique customer identifier and grain of the mart.
+        data_tests:
+          - not_null
+          - unique
+          - relationships:
+              to: ref('customers')
+              field: customer_id
+      - name: analysis_date
+        description: >
+          Maximum last-order date in the customers mart, used as the recency
+          anchor.
+      - name: first_order_date
+        description: >
+          Date of the customer's first order; null when the customer has no
+          purchases.
+      - name: last_order_date
+        description: >
+          Date of the customer's latest order; null when the customer has no
+          purchases.
+      - name: recency_days
+        description: >
+          Days from the latest customer order through analysis_date; null for
+          no-purchase customers.
+      - name: frequency
+        description: >
+          Count of distinct lifetime orders, including zero for no-purchase
+          customers.
+        data_tests:
+          - not_null
+      - name: pretax_monetary_value
+        description: >
+          Lifetime order subtotal before tax, including zero for no-purchase
+          customers.
+        data_tests:
+          - not_null
+      - name: average_order_value
+        description: >
+          Pretax monetary value divided by frequency, or zero when frequency
+          is zero.
+        data_tests:
+          - not_null
+      - name: tenure_days
+        description: >
+          Days from the customer's first order through analysis_date; null for
+          no-purchase customers.
+      - name: recency_score
+        description: Fixed-band recency score from 1 to 5, or 0 for no purchase.
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [0, 1, 2, 3, 4, 5]
+      - name: frequency_score
+        description: >
+          Fixed-band frequency score from 1 to 5, or 0 for no purchase.
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [0, 1, 2, 3, 4, 5]
+      - name: monetary_score
+        description: >
+          Fixed-band pretax monetary score from 1 to 5, or 0 for no purchase.
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [0, 1, 2, 3, 4, 5]
+      - name: rfm_code
+        description: >
+          Three-character concatenation of recency, frequency, and monetary
+          scores.
+        data_tests:
+          - not_null
+      - name: customer_segment
+        description: >
+          Named segment assigned using the documented first-match precedence
+          rules.
+        data_tests:
+          - not_null
+          - accepted_values:
+              values:
+                - champion
+                - loyal
+                - potential_loyalist
+                - new_customer
+                - at_risk
+                - hibernating
+                - no_purchase
+
+unit_tests:
+  - name: test_rfm_named_segments_follow_documented_precedence
+    description: >
+      Fixed-band scores and first-match segment rules assign the documented
+      named segments.
+    model: customer_rfm_segments
+    given:
+      - input: ref('customers')
+        rows:
+          - {
+              customer_id: 1,
+              first_ordered_at: "2024-01-01",
+              last_ordered_at: "2024-06-30",
+              count_lifetime_orders: 80,
+              lifetime_spend_pretax: 800,
+            }
+          - {
+              customer_id: 2,
+              first_ordered_at: "2024-01-01",
+              last_ordered_at: "2024-06-10",
+              count_lifetime_orders: 30,
+              lifetime_spend_pretax: 300,
+            }
+          - {
+              customer_id: 3,
+              first_ordered_at: "2024-06-01",
+              last_ordered_at: "2024-06-30",
+              count_lifetime_orders: 15,
+              lifetime_spend_pretax: 80,
+            }
+          - {
+              customer_id: 4,
+              first_ordered_at: "2024-06-30",
+              last_ordered_at: "2024-06-30",
+              count_lifetime_orders: 1,
+              lifetime_spend_pretax: 50,
+            }
+          - {
+              customer_id: 5,
+              first_ordered_at: "2023-01-01",
+              last_ordered_at: "2024-03-01",
+              count_lifetime_orders: 40,
+              lifetime_spend_pretax: 400,
+            }
+          - {
+              customer_id: 6,
+              first_ordered_at: "2024-05-01",
+              last_ordered_at: "2024-06-10",
+              count_lifetime_orders: 5,
+              lifetime_spend_pretax: 40,
+            }
+    expect:
+      rows:
+        - {
+            customer_id: 1,
+            analysis_date: "2024-06-30",
+            recency_days: 0,
+            frequency: 80,
+            pretax_monetary_value: 800,
+            recency_score: 5,
+            frequency_score: 4,
+            monetary_score: 4,
+            rfm_code: "544",
+            customer_segment: champion,
+          }
+        - {
+            customer_id: 2,
+            analysis_date: "2024-06-30",
+            recency_days: 20,
+            frequency: 30,
+            pretax_monetary_value: 300,
+            recency_score: 3,
+            frequency_score: 3,
+            monetary_score: 3,
+            rfm_code: "333",
+            customer_segment: loyal,
+          }
+        - {
+            customer_id: 3,
+            analysis_date: "2024-06-30",
+            recency_days: 0,
+            frequency: 15,
+            pretax_monetary_value: 80,
+            recency_score: 5,
+            frequency_score: 2,
+            monetary_score: 1,
+            rfm_code: "521",
+            customer_segment: potential_loyalist,
+          }
+        - {
+            customer_id: 4,
+            analysis_date: "2024-06-30",
+            recency_days: 0,
+            frequency: 1,
+            pretax_monetary_value: 50,
+            recency_score: 5,
+            frequency_score: 1,
+            monetary_score: 1,
+            rfm_code: "511",
+            customer_segment: new_customer,
+          }
+        - {
+            customer_id: 5,
+            analysis_date: "2024-06-30",
+            recency_days: 121,
+            frequency: 40,
+            pretax_monetary_value: 400,
+            recency_score: 1,
+            frequency_score: 3,
+            monetary_score: 3,
+            rfm_code: "133",
+            customer_segment: at_risk,
+          }
+        - {
+            customer_id: 6,
+            analysis_date: "2024-06-30",
+            recency_days: 20,
+            frequency: 5,
+            pretax_monetary_value: 40,
+            recency_score: 3,
+            frequency_score: 1,
+            monetary_score: 1,
+            rfm_code: "311",
+            customer_segment: hibernating,
+          }
+
+  - name: test_customer_without_orders_is_no_purchase
+    description: >
+      A customer without orders is retained with zero scores and the
+      no_purchase segment.
+    model: customer_rfm_segments
+    given:
+      - input: ref('customers')
+        rows:
+          - {
+              customer_id: 1,
+              first_ordered_at: "2024-01-01",
+              last_ordered_at: "2024-01-01",
+              count_lifetime_orders: 1,
+              lifetime_spend_pretax: 25,
+            }
+          - { customer_id: 2 }
+    expect:
+      rows:
+        - {
+            customer_id: 1,
+            analysis_date: "2024-01-01",
+            frequency: 1,
+            pretax_monetary_value: 25,
+            recency_score: 5,
+            frequency_score: 1,
+            monetary_score: 1,
+            rfm_code: "511",
+            customer_segment: new_customer,
+          }
+        - {
+            customer_id: 2,
+            analysis_date: "2024-01-01",
+            frequency: 0,
+            pretax_monetary_value: 0,
+            average_order_value: 0,
+            recency_score: 0,
+            frequency_score: 0,
+            monetary_score: 0,
+            rfm_code: "000",
+            customer_segment: no_purchase,
+          }
